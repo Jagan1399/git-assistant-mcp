@@ -30,51 +30,62 @@ class Settings(BaseSettings):
     # Google Gemini Configuration
     google_api_key: str = Field(
         default="",
-        description="Google API key for Gemini access"
+        description="Google API key for Gemini access",
+        alias="GOOGLE_API_KEY"
     )
     gemini_model_name: str = Field(
         default="gemini-pro",
-        description="Gemini model to use (e.g., gemini-pro, gemini-pro-vision)"
+        description="Gemini model to use (e.g., gemini-pro, gemini-pro-vision)",
+        alias="GEMINI_MODEL_NAME"
     )
     gemini_max_tokens: int = Field(
         default=1000,
-        description="Maximum tokens for Gemini response generation"
+        description="Maximum tokens for Gemini response generation",
+        alias="GEMINI_MAX_TOKENS"
     )
     gemini_temperature: float = Field(
         default=0.1,
-        description="Temperature setting for Gemini (0.0 = deterministic, 1.0 = creative)"
+        description="Temperature setting for Gemini (0.0 = deterministic, 1.0 = creative)",
+        alias="GEMINI_TEMPERATURE"
     )
     
     # OpenAI Configuration (fallback)
     openai_api_key: str = Field(
         default="",
-        description="OpenAI API key for GPT models"
+        description="OpenAI API key for GPT models",
+        alias="OPENAI_API_KEY"
     )
     openai_model_name: str = Field(
         default="gpt-4",
-        description="OpenAI model to use"
+        description="OpenAI model to use",
+        alias="OPENAI_MODEL_NAME"
     )
     openai_max_tokens: int = Field(
         default=1000,
-        description="Maximum tokens for OpenAI response generation"
+        description="Maximum tokens for OpenAI response generation",
+        alias="OPENAI_MAX_TOKENS"
     )
     openai_temperature: float = Field(
         default=0.1,
-        description="Temperature setting for OpenAI"
+        description="Temperature setting for OpenAI",
+        alias="OPENAI_TEMPERATURE"
     )
     
     # Anthropic Configuration (fallback)
     anthropic_api_key: str = Field(
         default="",
-        description="Anthropic API key for Claude models"
+        description="Anthropic API key for Claude models",
+        alias="ANTHROPIC_API_KEY"
     )
     anthropic_model_name: str = Field(
         default="claude-3-sonnet-20240229",
-        description="Anthropic model to use"
+        description="Anthropic model to use",
+        alias="ANTHROPIC_MODEL_NAME"
     )
     anthropic_max_tokens: int = Field(
         default=1000,
-        description="Maximum tokens for Anthropic response generation"
+        description="Maximum tokens for Anthropic response generation",
+        alias="ANTHROPIC_MAX_TOKENS"
     )
     
     # =============================================================================
@@ -83,15 +94,18 @@ class Settings(BaseSettings):
     
     git_timeout: int = Field(
         default=30,
-        description="Timeout for Git operations in seconds"
+        description="Timeout for Git operations in seconds",
+        alias="GIT_TIMEOUT"
     )
     max_commits: int = Field(
         default=5,
-        description="Maximum number of recent commits to analyze"
+        description="Maximum number of recent commits to analyze",
+        alias="MAX_COMMITS"
     )
     safe_mode: bool = Field(
         default=True,
-        description="Enable safe mode with warnings for destructive operations"
+        description="Enable safe mode with warnings for destructive operations",
+        alias="SAFE_MODE"
     )
     git_path: str = Field(
         default="git",
@@ -104,11 +118,13 @@ class Settings(BaseSettings):
     
     enable_colors: bool = Field(
         default=True,
-        description="Enable colored output in terminal"
+        description="Enable colored output in terminal",
+        alias="ENABLE_COLORS"
     )
     verbose_output: bool = Field(
         default=False,
-        description="Enable verbose logging output"
+        description="Enable verbose logging output",
+        alias="VERBOSE_OUTPUT"
     )
     show_progress: bool = Field(
         default=True,
@@ -220,26 +236,12 @@ class Settings(BaseSettings):
             raise ValueError('git_timeout must be between 5 and 300 seconds')
         return v
     
-    class Config:
-        """Pydantic configuration."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        
-        # Environment variable mapping
-        fields = {
-            'google_api_key': {'env': 'GOOGLE_API_KEY'},
-            'gemini_model_name': {'env': 'GEMINI_MODEL_NAME'},
-            'gemini_max_tokens': {'env': 'GEMINI_MAX_TOKENS'},
-            'gemini_temperature': {'env': 'GEMINI_TEMPERATURE'},
-            'openai_api_key': {'env': 'OPENAI_API_KEY'},
-            'openai_model_name': {'env': 'OPENAI_MODEL_NAME'},
-            'openai_max_tokens': {'env': 'OPENAI_MAX_TOKENS'},
-            'openai_temperature': {'env': 'OPENAI_TEMPERATURE'},
-            'anthropic_api_key': {'env': 'ANTHROPIC_API_KEY'},
-            'anthropic_model_name': {'env': 'ANTHROPIC_MODEL_NAME'},
-            'anthropic_max_tokens': {'env': 'ANTHROPIC_MAX_TOKENS'},
-        }
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        "extra": "ignore"  # Ignore extra fields from environment
+    }
 
 
 # Global settings instance

@@ -10,7 +10,7 @@ These models are used to:
 
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class FileStatus(BaseModel):
@@ -132,6 +132,7 @@ class BranchInfo(BaseModel):
     
     # Whether this branch exists on the remote
     has_remote: bool = Field(
+        default=False,
         description="True if a corresponding remote branch exists"
     )
     
@@ -154,6 +155,7 @@ class BranchInfo(BaseModel):
     
     # Whether this branch is up to date with remote
     is_up_to_date: bool = Field(
+        default=True,
         description="True if branch is synchronized with remote"
     )
 
@@ -328,48 +330,50 @@ class GitContext(BaseModel):
     )
     
     # Validation methods to ensure data consistency
-    @validator('has_conflicts')
-    def validate_conflicts(cls, v, values):
+    @field_validator('has_conflicts')
+    @classmethod
+    def validate_conflicts(cls, v: bool, info) -> bool:
         """
         Validate that conflicts flag is consistent with file statuses.
         
         This ensures that if any file has conflicts, the overall
         has_conflicts flag is set to True.
         """
-        if 'working_directory_status' in values:
+        if 'working_directory_status' in info.data:
             file_conflicts = any(
-                file.has_conflicts for file in values['working_directory_status']
+                file.has_conflicts for file in info.data['working_directory_status']
             )
             if file_conflicts and not v:
                 return True
         return v
     
-    @validator('modified_files', 'staged_files', 'untracked_files')
-    def validate_file_counts(cls, v, values, field):
+    @field_validator('modified_files', 'staged_files', 'untracked_files')
+    @classmethod
+    def validate_file_counts(cls, v: int, info) -> int:
         """
         Validate that file counts match the actual file statuses.
         
         This ensures consistency between the summary statistics
         and the detailed file status lists.
         """
-        if 'working_directory_status' in values:
-            if field.name == 'modified_files':
+        if 'working_directory_status' in info.data:
+            if info.field_name == 'modified_files':
                 actual_count = len([
-                    f for f in values['working_directory_status']
+                    f for f in info.data['working_directory_status']
                     if f.status in ['modified', 'deleted', 'renamed']
                 ])
                 if actual_count != v:
                     return actual_count
-            elif field.name == 'staged_files':
+            elif info.field_name == 'staged_files':
                 actual_count = len([
-                    f for f in values['staging_area_status']
+                    f for f in info.data['staging_area_status']
                     if f.is_staged
                 ])
                 if actual_count != v:
                     return actual_count
-            elif field.name == 'untracked_files':
+            elif info.field_name == 'untracked_files':
                 actual_count = len([
-                    f for f in values['working_directory_status']
+                    f for f in info.data['working_directory_status']
                     if f.status == 'untracked'
                 ])
                 if actual_count != v:
