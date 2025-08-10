@@ -1,0 +1,125 @@
+Of course. This is a perfect project for an AI-native editor like Cursor. Let's break down the "AI-Powered Git Assistant" into a phased, component-based implementation plan. You can build this incrementally, with each phase delivering a more powerful version of the tool.
+
+The core idea is to create a script or extension that:
+
+Reads the current Git state.
+
+Packages it as context for an LLM.
+
+Sends your natural language query with that context.
+
+Receives and acts on the model's intelligent response.
+
+Phase 1: The Core Engine (MVP) 🧱
+
+The goal here is to get the basic, non-interactive loop working from your terminal within Cursor.
+
+Component 1: The StateScraper
+
+This is a script (e.g., state_scraper.py) that gathers the Git repository's status and outputs it as a clean JSON object.
+
+Action: Write a script that executes the following Git commands:
+
+git branch --show-current to get the current branch name.
+
+git status --porcelain=v1 for a machine-readable list of staged, unstaged, and untracked files. This is much easier to parse than the standard git status.
+
+git log -n 5 --pretty=format:"%h|%s" to get the hash and message of the last 5 commits, separated by a pipe for easy splitting.
+
+Output: The script should parse the output of these commands and print a single JSON object to standard output, exactly like the context object we designed earlier.
+
+To Test: Run python state_scraper.py in your terminal and ensure it prints a valid JSON object representing your repo's current state.
+
+Component 2: The MCPWrapper
+
+This script takes a text prompt, calls the StateScraper, and then makes the actual API call to an LLM.
+
+Action: Create a main script (e.g., git_pal.py) that:
+
+Accepts a command-line argument (your natural language query, like "stage my changes").
+
+Executes the StateScraper script and captures its JSON output into a variable.
+
+Constructs a "meta-prompt" to send to the LLM. This is the key to getting a good response. The prompt should be structured like this:
+
+Plaintext
+You are an expert Git assistant. Your goal is to help the user by providing the exact Git command needed to accomplish their task.
+Analyze the user's request based on the provided JSON context of the repository's current state.
+
+Respond ONLY with a JSON object with three keys:
+1. "reply": A short, friendly, natural-language confirmation of what you are doing.
+2. "command": The precise, executable Git command to run.
+3. "updatedContext": Your best prediction of what the Git context JSON will look like after the command is successfully run.
+
+---
+CURRENT GIT CONTEXT:
+{ ... JSON from StateScraper goes here ... }
+---
+USER'S REQUEST:
+"stage my changes"
+Makes an API call to your LLM of choice (e.g., via the OpenAI API) with the meta-prompt.
+
+Parses the returned JSON response from the LLM and prints the reply and command values to the console.
+
+To Test: Run python git_pal.py "stage everything" in your terminal. It should print something like:
+
+Reply: Okay, staging all modified files.
+Command: git add .
+
+At the end of Phase 1, you have a functional, if clunky, CLI tool that is state-aware.
+
+Phase 2: Cursor Integration & UX 🎨
+
+Now, let's make it feel like a part of the Cursor editor instead of just a separate script.
+
+Component 3: @git Chat Command
+
+Integrate your tool with Cursor's chat.
+
+Action: Use Cursor's "Custom Commands" or similar features to register your script. You want to be able to type @git stage my changes directly in the chat panel.
+
+How: This might involve configuring Cursor's AI settings to let @git have access to the integrated terminal. The command would essentially trigger python git_pal.py "stage my changes" behind the scenes.
+
+Goal: The LLM's reply and command should appear directly in the chat interface.
+
+Component 4: Actionable Command Execution
+
+Don't just show the command—make it runnable.
+
+Action: Ensure the command from the model is formatted as a markdown code block in the chat response.
+
+Benefit: Cursor automatically adds "Copy" and "Run in Terminal" buttons to code blocks in its chat, making the command immediately actionable.
+
+Improvement: Once the user clicks "Run in Terminal", your tool should automatically re-run the StateScraper to refresh its context with the now-verified state of the repository. This is more reliable than using the updatedContext predicted by the model.
+
+Phase 3: Advanced Intelligence 🧠
+
+Make the assistant smarter and safer.
+
+Component 5: The Safety & Confirmation Layer
+
+Prevent accidental destructive actions.
+
+Action: Update your meta-prompt (in MCPWrapper). Add an instruction for the model to identify risky commands.
+
+Prompt addition: Add a boolean key "is_destructive": true to your JSON response if the command could result in data loss (e.g., git reset --hard, force push).
+
+Application Logic: When your tool receives a response where is_destructive is true, it should display a strong warning in the chat and require an explicit "Yes, I'm sure" confirmation before showing/running the command.
+
+Example Reply: "⚠️ Warning: This command will permanently delete your uncommitted changes. Are you sure?"
+
+Component 6: Multi-Step "Wizards"
+
+Handle complex, interactive operations.
+
+Action: Teach the assistant to manage operations that require multiple steps, like an interactive rebase (git rebase -i).
+
+How: Enhance the MCP context object with a current_operation field.
+
+User: @git start an interactive rebase on the last 3 commits.
+
+Model: Responds with the git rebase -i HEAD~3 command and an updatedContext where "current_operation": "interactive_rebase".
+
+Follow-up: For subsequent prompts, the model sees this current_operation in the context and knows how to interpret commands like "squash the second commit" or "reword the first one." It guides the user through the process until they say "finish the rebase."
+
+By building these components in order, you'll create an increasingly powerful and integrated Git assistant, moving from a simple proof-of-concept to a truly intelligent developer tool within Cursor.

@@ -1,0 +1,52 @@
+# Core dependencies
+python-dotenv>=1.0.0
+requests>=2.31.0
+typing-extensions>=4.8.0
+
+# LLM API clients
+openai>=1.3.0
+anthropic>=0.7.0
+google-generativeai>=0.10.0
+
+
+# Git operations and parsing
+gitpython>=3.1.40
+pygit2>=1.14.0
+
+# Data handling and validation
+pydantic>=2.5.0
+pydantic-settings>=2.0.0
+jsonschema>=4.20.0
+
+# CLI and user interface
+click>=8.1.7
+rich>=13.7.0
+prompt-toolkit>=3.0.43
+
+# Testing and development
+pytest>=7.4.3
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+black>=23.12.0
+flake8>=6.1.0
+mypy>=1.8.0
+
+# Async support (for future enhancements)
+aiohttp>=3.9.0
+asyncio-mqtt>=0.16.0
+
+# Configuration management
+pyyaml>=6.0.1
+toml>=0.10.2
+
+# Logging and monitoring
+structlog>=23.2.0
+colorama>=0.4.6
+
+# Security and validation
+cryptography>=41.0.0
+passlib>=1.7.4
+
+# Documentation
+sphinx>=7.2.0
+sphinx-rtd-theme>=2.0.0
