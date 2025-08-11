@@ -21,10 +21,10 @@ class Settings(BaseSettings):
     # LLM Configuration
     # =============================================================================
     
-    # Primary LLM provider
-    llm_provider: str = Field(
-        default="gemini",
-        description="LLM provider to use: gemini, openai, anthropic, or local"
+    # Primary LLM provider (auto-detected if not specified)
+    llm_provider: Optional[str] = Field(
+        default=None,
+        description="LLM provider to use: gemini, openai, anthropic, or local. If None, auto-detects based on available API keys"
     )
     
     # Google Gemini Configuration
@@ -34,8 +34,8 @@ class Settings(BaseSettings):
         alias="GOOGLE_API_KEY"
     )
     gemini_model_name: str = Field(
-        default="gemini-pro",
-        description="Gemini model to use (e.g., gemini-pro, gemini-pro-vision)",
+        default="gemini-1.5-flash",
+        description="Gemini model to use (e.g., gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp)",
         alias="GEMINI_MODEL_NAME"
     )
     gemini_max_tokens: int = Field(
@@ -207,10 +207,42 @@ class Settings(BaseSettings):
     @classmethod
     def validate_llm_provider(cls, v):
         """Validate LLM provider selection."""
+        if v is None:
+            return v  # Allow None for auto-detection
         allowed_providers = ['gemini', 'openai', 'anthropic', 'local']
         if v not in allowed_providers:
             raise ValueError(f'llm_provider must be one of {allowed_providers}')
         return v
+    
+    def auto_detect_provider(self) -> str:
+        """
+        Auto-detect which LLM provider to use based on available API keys.
+        
+        Returns:
+            Name of the detected provider
+            
+        Raises:
+            RuntimeError: If no provider is available
+        """
+        if self.google_api_key:
+            return "gemini"
+        elif self.openai_api_key:
+            return "openai"
+        elif self.anthropic_api_key:
+            return "anthropic"
+        else:
+            raise RuntimeError("No LLM API keys found. Please configure at least one provider.")
+    
+    def get_active_provider(self) -> str:
+        """
+        Get the active LLM provider, auto-detecting if necessary.
+        
+        Returns:
+            Name of the active provider
+        """
+        if self.llm_provider:
+            return self.llm_provider
+        return self.auto_detect_provider()
     
     @field_validator('gemini_temperature', 'openai_temperature')
     @classmethod

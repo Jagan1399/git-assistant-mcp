@@ -1,15 +1,14 @@
 """
-Google Gemini LLM Provider for Git Assistant MCP
+OpenAI LLM Provider for Git Assistant MCP
 
-This module provides integration with Google's Gemini API for natural language
+This module provides integration with OpenAI's API for natural language
 processing of Git operations.
 """
 
 import json
 import logging
 from typing import Dict, Any, Optional
-from google.generativeai import GenerativeModel, configure
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from openai import AsyncOpenAI
 
 from .base_provider import BaseLLMProvider
 from ...models.llm_response import LLMResponse
@@ -18,57 +17,46 @@ from ...config.settings import Settings
 logger = logging.getLogger(__name__)
 
 
-class GeminiProvider(BaseLLMProvider):
+class OpenAIProvider(BaseLLMProvider):
     """
-    Google Gemini API provider for Git Assistant MCP.
+    OpenAI API provider for Git Assistant MCP.
     
-    Handles communication with Gemini models for understanding user intent
+    Handles communication with OpenAI models for understanding user intent
     and generating appropriate Git commands.
     """
     
     def _validate_configuration(self) -> None:
         """
-        Validate that Gemini configuration is complete.
+        Validate that OpenAI configuration is complete.
         
         Raises:
             ValueError: If required configuration is missing
         """
-        if not self.settings.google_api_key:
-            raise ValueError("Google API key is required")
-        if not self.settings.gemini_model_name:
-            raise ValueError("Gemini model name is required")
+        if not self.settings.openai_api_key:
+            raise ValueError("OpenAI API key is required")
+        if not self.settings.openai_model_name:
+            raise ValueError("OpenAI model name is required")
         
-        logger.info("Gemini configuration validated successfully")
+        logger.info("OpenAI configuration validated successfully")
     
     def __init__(self, settings: Settings):
         """
-        Initialize the Gemini provider.
+        Initialize the OpenAI provider.
         
         Args:
             settings: Application settings containing API configuration
         """
         super().__init__(settings)
         
-        self.api_key = settings.google_api_key
-        self.model_name = settings.gemini_model_name
-        self.max_tokens = settings.gemini_max_tokens
-        self.temperature = settings.gemini_temperature
+        self.api_key = settings.openai_api_key
+        self.model_name = settings.openai_model_name
+        self.max_tokens = settings.openai_max_tokens
+        self.temperature = settings.openai_temperature
         
-        # Configure the Gemini client
-        configure(api_key=self.api_key)
+        # Initialize the OpenAI client
+        self.client = AsyncOpenAI(api_key=self.api_key)
         
-        # Initialize the model
-        self.model = GenerativeModel(self.model_name)
-        
-        # Configure safety settings
-        self.safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        }
-        
-        logger.info(f"Initialized Gemini provider with model: {self.model_name}")
+        logger.info(f"Initialized OpenAI provider with model: {self.model_name}")
     
     async def generate_response(
         self, 
@@ -76,36 +64,42 @@ class GeminiProvider(BaseLLMProvider):
         context: Dict[str, Any]
     ) -> LLMResponse:
         """
-        Generate a response from Gemini based on the prompt and context.
+        Generate a response from OpenAI based on the prompt and context.
         
         Args:
-            prompt: The formatted prompt to send to Gemini
+            prompt: The formatted prompt to send to OpenAI
             context: Additional context information
             
         Returns:
             LLMResponse object containing the parsed response
             
         Raises:
-            Exception: If there's an error communicating with Gemini API
+            Exception: If there's an error communicating with OpenAI API
         """
         try:
-            logger.debug(f"Sending prompt to Gemini: {prompt[:100]}...")
+            logger.debug(f"Sending prompt to OpenAI: {prompt[:100]}...")
             
-            # Generate content using Gemini
-            response = self.model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": self.temperature,
-                    "max_output_tokens": self.max_tokens,
-                    "top_p": 0.8,
-                    "top_k": 40,
-                },
-                safety_settings=self.safety_settings
+            # Generate content using OpenAI
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a Git assistant that helps users with Git operations. Always respond with valid JSON containing the required fields."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                response_format={"type": "json_object"}
             )
             
             # Extract the response text
-            response_text = response.text.strip()
-            logger.debug(f"Received response from Gemini: {response_text[:100]}...")
+            response_text = response.choices[0].message.content.strip()
+            logger.debug(f"Received response from OpenAI: {response_text[:100]}...")
             
             # Parse the JSON response
             parsed_response = self._parse_response(response_text)
@@ -122,15 +116,15 @@ class GeminiProvider(BaseLLMProvider):
             )
             
         except Exception as e:
-            logger.error(f"Error generating response from Gemini: {str(e)}")
-            raise Exception(f"Failed to generate response from Gemini: {str(e)}")
+            logger.error(f"Error generating response from OpenAI: {str(e)}")
+            raise Exception(f"Failed to generate response from OpenAI: {str(e)}")
     
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
         """
-        Parse the response text from Gemini into a structured format.
+        Parse the response text from OpenAI into a structured format.
         
         Args:
-            response_text: Raw response text from Gemini
+            response_text: Raw response text from OpenAI
             
         Returns:
             Parsed response as a dictionary
@@ -139,18 +133,8 @@ class GeminiProvider(BaseLLMProvider):
             ValueError: If the response cannot be parsed as valid JSON
         """
         try:
-            # Try to extract JSON from the response
-            # Gemini sometimes wraps JSON in markdown or adds extra text
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
-            if json_start == -1 or json_end == 0:
-                raise ValueError("No JSON object found in response")
-            
-            json_text = response_text[json_start:json_end]
-            
-            # Parse the JSON
-            parsed = json.loads(json_text)
+            # Parse the JSON response
+            parsed = json.loads(response_text)
             
             # Validate required fields
             required_fields = ["reply", "command", "explanation"]
@@ -163,7 +147,7 @@ class GeminiProvider(BaseLLMProvider):
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {str(e)}")
             logger.error(f"Response text: {response_text}")
-            raise ValueError(f"Invalid JSON response from Gemini: {str(e)}")
+            raise ValueError(f"Invalid JSON response from OpenAI: {str(e)}")
     
     def validate_response(self, response: LLMResponse) -> bool:
         """
@@ -205,17 +189,17 @@ class GeminiProvider(BaseLLMProvider):
     
     def get_model_info(self) -> Dict[str, Any]:
         """
-        Get information about the current Gemini model.
+        Get information about the current OpenAI model.
         
         Returns:
             Dictionary containing model information
         """
         return {
-            "provider": "gemini",
+            "provider": "openai",
             "model_name": self.model_name,
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
-            "safety_settings": str(self.safety_settings)
+            "api_type": "chat_completion"
         }
     
     def update_settings(self, new_settings: Settings) -> None:
@@ -225,20 +209,25 @@ class GeminiProvider(BaseLLMProvider):
         Args:
             new_settings: New settings to apply
         """
-        self.temperature = new_settings.gemini_temperature
-        self.max_tokens = new_settings.gemini_max_tokens
+        self.temperature = new_settings.openai_temperature
+        self.max_tokens = new_settings.openai_max_tokens
+        
+        # Reconfigure the client if the API key changed
+        if new_settings.openai_api_key != self.api_key:
+            self.api_key = new_settings.openai_api_key
+            self.client = AsyncOpenAI(api_key=self.api_key)
+            logger.info("Updated OpenAI API key")
         
         # Reconfigure the model if the model name changed
-        if new_settings.gemini_model_name != self.model_name:
-            self.model_name = new_settings.gemini_model_name
-            self.model = GenerativeModel(self.model_name)
-            logger.info(f"Updated Gemini model to: {self.model_name}")
+        if new_settings.openai_model_name != self.model_name:
+            self.model_name = new_settings.openai_model_name
+            logger.info(f"Updated OpenAI model to: {self.model_name}")
         
-        logger.info("Updated Gemini provider settings")
+        logger.info("Updated OpenAI provider settings")
     
     def is_available(self) -> bool:
         """
-        Check if the Gemini provider is available and properly configured.
+        Check if the OpenAI provider is available and properly configured.
         
         Returns:
             True if the provider can be used, False otherwise
