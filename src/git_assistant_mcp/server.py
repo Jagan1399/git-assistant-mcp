@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 import asyncio
+from mcp.types import InitializeRequest, InitializeResult
 
 # Assuming the refactored mcp_wrapper is in core
 from .core.mcp_wrapper import create_git_assistant, GitAssistantMCP
@@ -11,6 +12,8 @@ class McpRequest(BaseModel):
     user_request: str
 
 app = FastAPI()
+
+
 
 # Create a long-lived assistant instance
 try:

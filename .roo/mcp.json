@@ -1,16 +1,21 @@
 {
   "mcpServers": {
     "local-git-assistant": {
-      "name": "Local Git Assistant",
-      "url": "https://bea950c71358.ngrok-free.app/mcp",
-      "method": "POST",
-      "headers": {
-        "Content-Type": "application/json"
-      },
-      "bodyTemplate": {
-        "user_request": "{{user_request}}"
-      }
+      "type": "streamable-http",
+      "url": "http://localhost:8000/mcp",
+      "methods": [
+        "get",
+        "post",
+        "put",
+        "delete"
+      ],
+      "name": "Local Git Assistant MCP Server",
+      "description": "Local Git Assistant MCP server",
+      "version": "1.0.0",
+      "alwaysAllow": [
+        "local-git-assistant"
+      ],
+      "disabled": false
     }
-  },
-  "activeMcpServer": "local-git-assistant"
+  }
 }
