@@ -16,9 +16,9 @@ from ..core.state_scraper import StateScraper, GitCommandError
 from ..llm import get_llm_provider
 from ..models.git_context import GitContext
 from ..models.llm_response import LLMResponse
+from ..llm.prompt_templates import format_git_command_prompt
 
 logger = logging.getLogger(__name__)
-
 
 class GitAssistantMCP:
     """
@@ -162,99 +162,29 @@ class GitAssistantMCP:
             raise RuntimeError(f"LLM processing failed: {str(e)}")
     
     def _create_prompt(
-        self, 
-        user_request: str, 
-        git_context: GitContext, 
+        self,
+        user_request: str,
+        git_context: GitContext,
         context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Create a structured prompt for the LLM.
-        
+        Create a structured prompt for the LLM using the centralized template.
+
         Args:
             user_request: What the user wants to do
             git_context: Current Git repository state
-            context: Additional context
-            
+            context: Additional context (not used in this implementation)
+
         Returns:
             Formatted prompt string
         """
-        # Basic prompt structure
-        prompt_parts = [
-            "You are a Git assistant that helps users with Git operations.",
-            "Based on the user's request and current repository state, generate a Git command.",
-            "",
-            "USER REQUEST:",
-            user_request,
-            "",
-            "CURRENT REPOSITORY STATE:",
-            git_context.get_summary(),
-            "",
-            "DETAILED STATE:",
-            f"- Repository: {git_context.repository_path}",
-            f"- Current branch: {git_context.current_branch.name}",
-            f"- Working directory: {git_context.working_directory}",
-            f"- Modified files: {git_context.modified_files}",
-            f"- Staged files: {git_context.staged_files}",
-            f"- Untracked files: {git_context.untracked_files}",
-        ]
-        
-        # Add file status details if there are changes
-        if git_context.working_directory_status:
-            prompt_parts.append("")
-            prompt_parts.append("FILE STATUS:")
-            for file_status in git_context.working_directory_status:
-                prompt_parts.append(f"- {file_status.status}: {file_status.file_path}")
-        
-        # Add recent commits if available
-        if git_context.recent_commits:
-            prompt_parts.append("")
-            prompt_parts.append("RECENT COMMITS:")
-            for commit in git_context.recent_commits[:3]:  # Last 3 commits
-                prompt_parts.append(f"- {commit.short_hash}: {commit.message}")
-        
-        # Add special state information
-        special_states = []
-        if git_context.has_conflicts:
-            special_states.append("⚠️ MERGE CONFLICTS DETECTED")
-        if git_context.is_merging:
-            special_states.append("🔄 MERGE IN PROGRESS")
-        if git_context.is_rebasing:
-            special_states.append("🔄 REBASE IN PROGRESS")
-        if git_context.is_detached_head:
-            special_states.append("⚠️ DETACHED HEAD STATE")
-        
-        if special_states:
-            prompt_parts.append("")
-            prompt_parts.append("SPECIAL STATES:")
-            prompt_parts.extend(special_states)
-        
-        # Add response format instructions
-        prompt_parts.extend([
-            "",
-            "RESPONSE FORMAT:",
-            "Respond with valid JSON containing EXACTLY these fields:",
-            "{",
-            '  "reply": "Human-readable response explaining what you will do",',
-            '  "command": "The exact Git command to execute (must start with git)",',
-            '  "explanation": "Brief explanation of what the command does",',
-            '  "is_destructive": false,',
-            '  "confidence": 0.9',
-            "}",
-            "",
-            "IMPORTANT RULES:",
-            "- reply: Must be a simple string explaining your action",
-            "- command: Must start with 'git ' and be a valid Git command",
-            "- explanation: Must be a simple string explaining the command",
-            "- is_destructive: Must be true/false (true for dangerous operations)",
-            "- confidence: Must be a number between 0.0 and 1.0",
-            "- Do NOT include alternatives field",
-            "- Do NOT include any other fields",
-            "- Be safe and conservative",
-            "- Mark destructive operations appropriately",
-            "- Consider the current repository state"
-        ])
-        
-        return "\n".join(prompt_parts)
+        # Convert the Pydantic model to a dictionary for JSON serialization
+        git_context_dict = git_context.model_dump(mode="json")
+
+        return format_git_command_prompt(
+            git_context=git_context_dict,
+            user_query=user_request
+        )
     
     async def _prepare_execution_plan(
         self, 
@@ -575,10 +505,35 @@ class GitAssistantMCP:
                 "error": str(e)
             }
 
+    def get_manifest(self) -> Dict[str, Any]:
+        """
+        Get the MCP manifest, which describes the server's capabilities.
+
+        Returns:
+            MCP manifest dictionary
+        """
+        return {
+            "name": "git-assistant-mcp",
+            "display_name": "Git Assistant MCP",
+            "description": "An AI-powered assistant for Git command-line operations.",
+            "tools": {
+                "get_git_context": {
+                    "display_name": "Get Git Context",
+                    "description": "Get the current git status, including branch, status, and recent commits.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
+            },
+            "resources": {}
+        }
+
 
 # Convenience function for quick access
 def create_git_assistant(
-    repo_path: Optional[str] = None, 
+    repo_path: Optional[str] = None,
     settings: Optional[Settings] = None
 ) -> GitAssistantMCP:
     """

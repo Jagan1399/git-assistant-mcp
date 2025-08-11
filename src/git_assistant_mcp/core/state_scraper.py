@@ -506,6 +506,47 @@ class StateScraper:
             remotes.append(RemoteInfo(**remote_info))
         
         return remotes
+
+    def _parse_remote_branches(self, remote_branch_output: str) -> List[BranchInfo]:
+        """
+        Parse the output of 'git branch -r' into BranchInfo objects.
+        
+        Args:
+            remote_branch_output: Raw output from 'git branch -r'
+            
+        Returns:
+            List of BranchInfo objects for remote branches
+        """
+        remote_branches = []
+        
+        for line in remote_branch_output.split('\n'):
+            line = line.strip()
+            if not line or '->' in line:  # Skip HEAD pointers
+                continue
+            
+            try:
+                # Remote branches are listed as 'origin/branch-name'
+                parts = line.split('/')
+                if len(parts) >= 2:
+                    remote_name = parts[0]
+                    branch_name = '/'.join(parts[1:])
+                    
+                    branch_info = BranchInfo(
+                        name=branch_name,
+                        is_current=False,
+                        has_remote=True,
+                        remote_name=remote_name,
+                        ahead_count=0,  # Not applicable for remote-only branches
+                        behind_count=0, # Not applicable for remote-only branches
+                        is_up_to_date=True # Assumed for remote branches
+                    )
+                    remote_branches.append(branch_info)
+                    
+            except Exception as e:
+                logger.warning(f"Failed to parse remote branch line: {line}, error: {e}")
+                continue
+                
+        return remote_branches
     
     def _determine_url_type(self, url: str) -> str:
         """
@@ -669,6 +710,10 @@ class StateScraper:
             # Get remotes
             remotes_output = self._run_git_command(['remote', '-v'])
             remotes = self._parse_remotes(remotes_output)
+
+            # Get remote branches
+            remote_branches_output = self._run_git_command(['branch', '-r'])
+            remote_branches = self._parse_remote_branches(remote_branches_output)
             
             # Get file status
             status_output = self._run_git_command(['status', '--porcelain'])
@@ -704,7 +749,7 @@ class StateScraper:
                 working_directory=working_directory,
                 current_branch=current_branch,
                 local_branches=all_branches,
-                remote_branches=[],  # TODO: Implement remote branch parsing
+                remote_branches=remote_branches,
                 remotes=remotes,
                 working_directory_status=working_directory_status,
                 staging_area_status=staging_area_status,

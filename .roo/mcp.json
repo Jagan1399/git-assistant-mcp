@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "local-git-assistant": {
+      "name": "Local Git Assistant",
+      "url": "https://bea950c71358.ngrok-free.app/mcp",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "user_request": "{{user_request}}"
+      }
+    }
+  },
+  "activeMcpServer": "local-git-assistant"
+}
