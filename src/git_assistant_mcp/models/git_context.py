@@ -232,7 +232,46 @@ class GitContext(BaseModel):
     context object. It's used by the LLM to understand the repository state
     and generate appropriate Git commands.
     """
-    
+
+    def to_summarized_dict(self) -> Dict[str, Any]:
+        """
+        Returns a filtered/summarized dictionary of the git context for concise LLM prompts.
+        Only includes essential fields and omits verbose lists unless specifically required.
+        """
+        return {
+            "repository_path": self.repository_path,
+            "is_git_repository": self.is_git_repository,
+            "working_directory": self.working_directory,
+            "current_branch": {
+                "name": self.current_branch.name,
+                "is_current": self.current_branch.is_current,
+                "has_remote": self.current_branch.has_remote,
+                "ahead_count": self.current_branch.ahead_count,
+                "behind_count": self.current_branch.behind_count,
+                "is_up_to_date": self.current_branch.is_up_to_date,
+            },
+            "modified_files": self.modified_files,
+            "staged_files": self.staged_files,
+            "untracked_files": self.untracked_files,
+            "total_files": self.total_files,
+            "has_conflicts": self.has_conflicts,
+            "is_merging": self.is_merging,
+            "is_rebasing": self.is_rebasing,
+            "is_detached_head": self.is_detached_head,
+            "changed_files": [
+                {
+                    "file_path": f.file_path,
+                    "status": f.status,
+                    "is_staged": f.is_staged,
+                    "is_tracked": f.is_tracked,
+                    "has_conflicts": f.has_conflicts,
+                }
+                for f in self.working_directory_status
+                if f.status in ["modified", "deleted", "renamed", "untracked"]
+            ],
+            "captured_at": self.captured_at.isoformat(),
+        }
+
     # Basic repository information
     repository_path: str = Field(
         description="Absolute path to the Git repository root"

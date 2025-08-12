@@ -52,10 +52,11 @@ class OpenAIProvider(BaseLLMProvider):
         self.model_name = settings.openai_model_name
         self.max_tokens = settings.openai_max_tokens
         self.temperature = settings.openai_temperature
-        
+        self.base_url = settings.openai_base_url
+
         # Initialize the OpenAI client
-        self.client = AsyncOpenAI(api_key=self.api_key)
-        
+        self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+
         logger.info(f"Initialized OpenAI provider with model: {self.model_name}")
     
     async def generate_response(

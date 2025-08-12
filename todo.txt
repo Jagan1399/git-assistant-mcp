@@ -1,0 +1,11 @@
+Resolve ssl error so that changes can be pushed, committed using cli 
+Make necessary changes to enable adding git_assistant as an mcp server in roo code
+# TODO: Minimize LLM context length in Git Assistant
+
+- Refactor the prompt-building logic to use a filtered/summarized git_context for most requests. - done
+- Only include full details when the user's request requires them (e.g., file-specific operations). - done
+- Limit the number of files included (e.g., only changed files, not all files). - done
+- Reduce max_commits in your config to a lower value. - done
+- Exclude large lists (e.g., remote branches, stashes) unless relevant. - done
+- Only include summary statistics and the user's request, not full file/commit/branch details. - done 
+- Consider implementing a "quick status" mode using StateScraper.get_quick_status() for most requests. - done

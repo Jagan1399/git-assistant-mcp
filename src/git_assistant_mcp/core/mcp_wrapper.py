@@ -178,8 +178,32 @@ class GitAssistantMCP:
         Returns:
             Formatted prompt string
         """
-        # Convert the Pydantic model to a dictionary for JSON serialization
-        git_context_dict = git_context.model_dump(mode="json")
+        # Conditionally use full or summarized git context for LLM prompts
+        user_request_lower = user_request.lower()
+        if any(kw in user_request_lower for kw in ["file", "diff", "branch list", "show all", "details"]):
+            # Use full context for file-specific or detail-heavy operations
+            git_context_dict = git_context.model_dump(mode="json")
+            # Limit files unless user explicitly requests all files
+            if not any(kw in user_request_lower for kw in ["all files", "list all files", "every file"]):
+                if "working_directory_status" in git_context_dict:
+                    git_context_dict["working_directory_status"] = [
+                        f for f in git_context_dict["working_directory_status"]
+                        if f["status"] in ["modified", "deleted", "renamed", "untracked"]
+                    ]
+                if "staging_area_status" in git_context_dict:
+                    git_context_dict["staging_area_status"] = [
+                        f for f in git_context_dict["staging_area_status"]
+                        if f["status"] in ["modified", "deleted", "renamed", "untracked"]
+                    ]
+            # Exclude large lists unless explicitly requested
+            if not any(kw in user_request_lower for kw in ["remote branch", "remote branches", "show stashes", "stash", "list stashes"]):
+                if "remote_branches" in git_context_dict:
+                    git_context_dict["remote_branches"] = []
+                if "stashes" in git_context_dict:
+                    git_context_dict["stashes"] = []
+        else:
+            # Use summarized context for most requests
+            git_context_dict = git_context.to_summarized_dict()
 
         return format_git_command_prompt(
             git_context=git_context_dict,
@@ -546,4 +570,16 @@ def create_git_assistant(
     Returns:
         Configured GitAssistantMCP instance
     """
-    return GitAssistantMCP(settings=settings, repo_path=repo_path)
+    # Load settings if not provided
+    s = settings or get_settings()
+    # Log relevant environment variables before initializing LLM
+    logger.info("LLM environment variables for initialization:")
+    logger.info(f"llm_provider: {s.llm_provider}")
+    logger.info(f"google_api_key: {s.google_api_key}")
+    logger.info(f"gemini_model_name: {s.gemini_model_name}")
+    logger.info(f"openai_api_key: {s.openai_api_key}")
+    logger.info(f"openai_model_name: {s.openai_model_name}")
+    logger.info(f"openai_base_url: {s.openai_base_url}")
+    logger.info(f"anthropic_api_key: {getattr(s, 'anthropic_api_key', None)}")
+    logger.info(f"anthropic_model_name: {getattr(s, 'anthropic_model_name', None)}")
+    return GitAssistantMCP(settings=s, repo_path=repo_path)

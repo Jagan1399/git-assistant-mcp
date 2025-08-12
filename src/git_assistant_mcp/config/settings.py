@@ -70,7 +70,12 @@ class Settings(BaseSettings):
         description="Temperature setting for OpenAI",
         alias="OPENAI_TEMPERATURE"
     )
-    
+    openai_base_url: str = Field(
+        default="",
+        description="Base URL for OpenAI API",
+        alias="OPENAI_BASE_URL"
+    )
+
     # Anthropic Configuration (fallback)
     anthropic_api_key: str = Field(
         default="",
@@ -98,7 +103,7 @@ class Settings(BaseSettings):
         alias="GIT_TIMEOUT"
     )
     max_commits: int = Field(
-        default=5,
+        default=3,
         description="Maximum number of recent commits to analyze",
         alias="MAX_COMMITS"
     )
