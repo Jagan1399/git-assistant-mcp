@@ -53,7 +53,24 @@ class StateScraper:
             repository_path: Path to the Git repository. If None, uses current directory.
         """
         self.settings = get_settings()
-        self.repository_path = Path(repository_path) if repository_path else Path.cwd()
+        if repository_path:
+            self.repository_path = Path(repository_path)
+        else:
+            # Try to find a Git repository
+            current_path = Path.cwd()
+            if (current_path / ".git").exists():
+                self.repository_path = current_path
+            elif (current_path / "git-assistant-mcp" / ".git").exists():
+                self.repository_path = current_path / "git-assistant-mcp"
+            else:
+                # Search for any .git directory in subdirectories
+                for subdir in current_path.iterdir():
+                    if subdir.is_dir() and (subdir / ".git").exists():
+                        self.repository_path = subdir
+                        break
+                else:
+                    self.repository_path = current_path
+        
         self.git_path = self.settings.git_path
         
         # Validate that we're in a Git repository
@@ -390,70 +407,73 @@ class StateScraper:
             List of BranchInfo objects
         """
         branches = []
-        
         for line in branch_output.split('\n'):
             if not line.strip():
                 continue
-            
             try:
                 # Parse branch line format: * branch_name [origin/branch_name] ahead/behind
                 # Example: "* main [origin/main] 2 ahead, 1 behind"
                 line = line.strip()
-                
-                # Check if current branch
                 is_current = line.startswith('* ')
                 if is_current:
-                    line = line[2:]  # Remove "* "
-                
-                # Extract branch name
+                    line = line[2:]
                 parts = line.split()
                 if not parts:
                     continue
-                
                 branch_name = parts[0]
-                
-                # Parse remote tracking info
                 has_remote = False
                 remote_name = None
                 ahead_count = 0
                 behind_count = 0
-                
-                if len(parts) > 1 and parts[1].startswith('[') and parts[1].endswith(']'):
-                    remote_info = parts[1][1:-1]  # Remove brackets
-                    
-                    if '/' in remote_info:
-                        has_remote = True
-                        remote_name = remote_info.split('/')[1]
-                        
-                        # Parse ahead/behind counts
-                        if len(parts) > 2:
-                            tracking_info = ' '.join(parts[2:])
-                            ahead_match = re.search(r'(\d+)\s+ahead', tracking_info)
-                            behind_match = re.search(r'(\d+)\s+behind', tracking_info)
-                            
-                            if ahead_match:
-                                ahead_count = int(ahead_match.group(1))
-                            if behind_match:
-                                behind_count = int(behind_match.group(1))
-                
-                # Determine if up to date
+                if len(parts) > 1 and '[' in parts[1] and ']' in parts[1]:
+                    bracket_part = None
+                    for part in parts[1:]:
+                        if '[' in part and ']' in part:
+                            bracket_part = part
+                            break
+                    if bracket_part:
+                        remote_info = bracket_part.strip('[]')
+                        if '/' in remote_info:
+                            has_remote = True
+                            remote_parts = remote_info.split('/')
+                            if len(remote_parts) > 1:
+                                remote_name = remote_parts[1]
+                            remaining_parts = []
+                            found_bracket = False
+                            for part in parts[1:]:
+                                if '[' in part and ']' in part:
+                                    found_bracket = True
+                                    continue
+                                if found_bracket:
+                                    remaining_parts.append(part)
+                            if remaining_parts:
+                                tracking_info = ' '.join(remaining_parts)
+                                ahead_match = re.search(r'(\d+)\s+ahead', tracking_info)
+                                behind_match = re.search(r'(\d+)\s+behind', tracking_info)
+                                if ahead_match:
+                                    ahead_count = int(ahead_match.group(1))
+                                if behind_match:
+                                    behind_count = int(behind_match.group(1))
                 is_up_to_date = ahead_count == 0 and behind_count == 0
-                
-                branch_info = BranchInfo(
-                    name=branch_name,
-                    is_current=is_current,
-                    has_remote=has_remote,
-                    remote_name=remote_name,
-                    ahead_count=ahead_count,
-                    behind_count=behind_count,
-                    is_up_to_date=is_up_to_date
-                )
-                branches.append(branch_info)
-                
+                try:
+                    branch_info = BranchInfo(
+                        name=branch_name,
+                        is_current=is_current,
+                        has_remote=has_remote,
+                        remote_name=remote_name,
+                        ahead_count=ahead_count,
+                        behind_count=behind_count,
+                        is_up_to_date=is_up_to_date
+                    )
+                    branches.append(branch_info)
+                except Exception as e:
+                    logger.error(f"Error creating BranchInfo for {branch_name}: {e}")
+                    continue
             except Exception as e:
                 logger.warning(f"Failed to parse branch line: {line}, error: {e}")
                 continue
-        
+        # Filter out any non-BranchInfo objects (e.g., tuples) just in case
+        branches = [b for b in branches if hasattr(b, 'name')]
         return branches
     
     def _parse_remotes(self, remote_output: str) -> List[RemoteInfo]:
@@ -702,10 +722,41 @@ class StateScraper:
             all_branches = self._parse_branches(branches_output)
             
             # Find current branch info
-            current_branch = next(
-                (b for b in all_branches if b.name == current_branch_name),
-                BranchInfo(name=current_branch_name, is_current=True)
-            )
+            current_branch = None
+            for b in all_branches:
+                # Ensure b is a BranchInfo object, not a tuple
+                if hasattr(b, 'name') and b.name == current_branch_name:
+                    current_branch = b
+                    break
+                elif isinstance(b, tuple):
+                    logger.error(f"Found tuple instead of BranchInfo: {b}")
+                    continue
+            
+            # If not found, create a default one
+            if current_branch is None:
+                logger.info(f"Creating default BranchInfo for branch: {current_branch_name}")
+                current_branch = BranchInfo(
+                    name=current_branch_name,
+                    is_current=True,
+                    has_remote=False,
+                    remote_name=None,
+                    ahead_count=0,
+                    behind_count=0,
+                    is_up_to_date=True
+                )
+            
+            # Validate that current_branch is a BranchInfo object
+            if not hasattr(current_branch, 'name'):
+                logger.error(f"current_branch is not a BranchInfo object: {type(current_branch)} - {current_branch}")
+                current_branch = BranchInfo(
+                    name=str(current_branch_name),
+                    is_current=True,
+                    has_remote=False,
+                    remote_name=None,
+                    ahead_count=0,
+                    behind_count=0,
+                    is_up_to_date=True
+                )
             
             # Get remotes
             remotes_output = self._run_git_command(['remote', '-v'])

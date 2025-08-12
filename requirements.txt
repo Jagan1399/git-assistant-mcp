@@ -27,6 +27,9 @@ prompt-toolkit>=3.0.43
 fastapi>=0.108.0
 uvicorn[standard]>=0.25.0
 
+# MCP (Model Context Protocol)
+mcp>=1.0.0
+
 # Testing and development
 pytest>=7.4.3
 pytest-cov>=4.1.0

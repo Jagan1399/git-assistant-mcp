@@ -41,7 +41,23 @@ class GitAssistantMCP:
             repo_path: Path to Git repository (auto-detected if not provided)
         """
         self.settings = settings or get_settings()
-        self.repo_path = Path(repo_path) if repo_path else Path.cwd()
+        if repo_path:
+            self.repo_path = Path(repo_path)
+        else:
+            # Try to find a Git repository in the current directory or subdirectories
+            current_path = Path.cwd()
+            if (current_path / ".git").exists():
+                self.repo_path = current_path
+            elif (current_path / "git-assistant-mcp" / ".git").exists():
+                self.repo_path = current_path / "git-assistant-mcp"
+            else:
+                # Search for any .git directory in subdirectories
+                for subdir in current_path.iterdir():
+                    if subdir.is_dir() and (subdir / ".git").exists():
+                        self.repo_path = subdir
+                        break
+                else:
+                    self.repo_path = current_path
         
         # Initialize components
         self.state_scraper = StateScraper(self.repo_path)
@@ -376,7 +392,7 @@ class GitAssistantMCP:
             "timestamp": git_context.captured_at.isoformat(),
             "repository_info": {
                 "path": str(git_context.repository_path),
-                "branch": git_context.current_branch.name,
+                "branch": getattr(git_context.current_branch, 'name', 'unknown'),
                 "status_summary": git_context.get_summary()
             }
         }
@@ -429,7 +445,7 @@ class GitAssistantMCP:
             return {
                 "success": True,
                 "repository_path": str(git_context.repository_path),
-                "current_branch": git_context.current_branch.name,
+                "current_branch": getattr(git_context.current_branch, 'name', 'unknown'),
                 "status_summary": git_context.get_summary(),
                 "file_counts": {
                     "modified": git_context.modified_files,

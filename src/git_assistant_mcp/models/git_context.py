@@ -243,12 +243,12 @@ class GitContext(BaseModel):
             "is_git_repository": self.is_git_repository,
             "working_directory": self.working_directory,
             "current_branch": {
-                "name": self.current_branch.name,
-                "is_current": self.current_branch.is_current,
-                "has_remote": self.current_branch.has_remote,
-                "ahead_count": self.current_branch.ahead_count,
-                "behind_count": self.current_branch.behind_count,
-                "is_up_to_date": self.current_branch.is_up_to_date,
+                "name": getattr(self.current_branch, 'name', 'unknown'),
+                "is_current": getattr(self.current_branch, 'is_current', True),
+                "has_remote": getattr(self.current_branch, 'has_remote', False),
+                "ahead_count": getattr(self.current_branch, 'ahead_count', 0),
+                "behind_count": getattr(self.current_branch, 'behind_count', 0),
+                "is_up_to_date": getattr(self.current_branch, 'is_up_to_date', True),
             },
             "modified_files": self.modified_files,
             "staged_files": self.staged_files,
@@ -429,7 +429,8 @@ class GitContext(BaseModel):
         summary_parts = []
         
         # Branch information
-        summary_parts.append(f"On branch: {self.current_branch.name}")
+        branch_name = getattr(self.current_branch, 'name', 'unknown')
+        summary_parts.append(f"On branch: {branch_name}")
         
         # Status summary
         if self.modified_files > 0:
@@ -450,11 +451,14 @@ class GitContext(BaseModel):
             summary_parts.append("⚠️  Detached HEAD state")
         
         # Remote status
-        if self.current_branch.has_remote:
-            if self.current_branch.ahead_count > 0:
-                summary_parts.append(f"↑ {self.current_branch.ahead_count} commits ahead")
-            if self.current_branch.behind_count > 0:
-                summary_parts.append(f"↓ {self.current_branch.behind_count} commits behind")
+        has_remote = getattr(self.current_branch, 'has_remote', False)
+        if has_remote:
+            ahead_count = getattr(self.current_branch, 'ahead_count', 0)
+            behind_count = getattr(self.current_branch, 'behind_count', 0)
+            if ahead_count > 0:
+                summary_parts.append(f"↑ {ahead_count} commits ahead")
+            if behind_count > 0:
+                summary_parts.append(f"↓ {behind_count} commits behind")
         
         return " | ".join(summary_parts)
     
