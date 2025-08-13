@@ -26,7 +26,7 @@ from mcp.types import (
     ReadResourceResult,
 )
 
-from .core.mcp_wrapper import create_git_assistant
+from src.git_assistant_mcp.core.mcp_wrapper import create_git_assistant
 
 # Configure logging to stderr to avoid interfering with stdio communication
 logging.basicConfig(
@@ -110,7 +110,9 @@ async def handle_list_tools() -> ListToolsResult:
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResult:
     """Handle tool calls."""
+    logger.debug(f"handle_call_tool called with name={name!r}, arguments={arguments!r} (types: {type(arguments)})")
     if assistant is None:
+        logger.error("Git Assistant is not initialized")
         return CallToolResult(
             content=[TextContent(type="text", text="Error: Git Assistant is not initialized")]
         )
@@ -118,47 +120,57 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
     try:
         if name == "process_git_request":
             request_text = arguments.get("request", "")
+            logger.debug(f"process_git_request: request_text={request_text!r} (type: {type(request_text)})")
             if not request_text:
                 return CallToolResult(
                     content=[TextContent(type="text", text="Error: No request provided")]
                 )
             
             result = await assistant.process_request(request_text)
+            logger.debug(f"process_git_request result: {result!r} (type: {type(result)})")
             formatted_response = format_git_response(result)
             
+            logger.debug(f"process_git_request formatted_response: {formatted_response!r} (type: {type(formatted_response)})")
             return CallToolResult(
                 content=[TextContent(type="text", text=formatted_response)]
             )
         
         elif name == "get_git_status":
+            logger.debug("get_git_status called")
             result = await assistant.get_repository_status()
+            logger.debug(f"get_git_status result: {result!r} (type: {type(result)})")
             formatted_response = format_status_response(result)
             
+            logger.debug(f"get_git_status formatted_response: {formatted_response!r} (type: {type(formatted_response)})")
             return CallToolResult(
                 content=[TextContent(type="text", text=formatted_response)]
             )
         
         elif name == "explain_git_command":
             command = arguments.get("command", "")
+            logger.debug(f"explain_git_command: command={command!r} (type: {type(command)})")
             if not command:
                 return CallToolResult(
                     content=[TextContent(type="text", text="Error: No command provided")]
                 )
             
             result = await assistant.explain_command(command)
+            logger.debug(f"explain_git_command result: {result!r} (type: {type(result)})")
             formatted_response = format_explanation_response(result)
             
+            logger.debug(f"explain_git_command formatted_response: {formatted_response!r} (type: {type(formatted_response)})")
             return CallToolResult(
                 content=[TextContent(type="text", text=formatted_response)]
             )
         
         else:
+            logger.error(f"Unknown tool called: {name!r}")
             return CallToolResult(
                 content=[TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
             )
     
     except Exception as e:
-        logger.error(f"Error calling tool {name}: {e}")
+        logger.error(f"Error calling tool {name}: {e} (arguments={arguments!r})")
         return CallToolResult(
             content=[TextContent(type="text", text=f"Error: {str(e)}")]
         )

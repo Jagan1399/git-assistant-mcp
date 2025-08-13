@@ -302,6 +302,7 @@ async def process_mcp_method(method: str, params: Dict[str, Any]) -> Dict[str, A
     """
     Process MCP method calls.
     """
+    logger.debug(f"process_mcp_method called with method={method!r}, params={params!r} (types: {type(params)})")
     if method == "initialize":
         return {
             "protocolVersion": "2024-11-05",
@@ -371,43 +372,57 @@ async def process_mcp_method(method: str, params: Dict[str, Any]) -> Dict[str, A
     elif method == "tools/call":
         tool_name = params.get("name")
         tool_arguments = params.get("arguments", {})
+        logger.debug(f"tools/call: tool_name={tool_name!r}, tool_arguments={tool_arguments!r} (types: {type(tool_arguments)})")
         
         if tool_name == "process_git_request":
             request_text = tool_arguments.get("request", "")
+            logger.debug(f"process_git_request: request_text={request_text!r} (type: {type(request_text)})")
             result = await assistant.process_request(request_text)
+            logger.debug(f"process_git_request result: {result!r} (type: {type(result)})")
+            formatted = format_git_response(result)
+            logger.debug(f"process_git_request formatted: {formatted!r} (type: {type(formatted)})")
             return {
                 "content": [
                     {
                         "type": "text",
-                        "text": format_git_response(result)
+                        "text": formatted
                     }
                 ]
             }
         
         elif tool_name == "get_git_status":
+            logger.debug("get_git_status called")
             result = await assistant.get_repository_status()
+            logger.debug(f"get_git_status result: {result!r} (type: {type(result)})")
+            formatted = format_status_response(result)
+            logger.debug(f"get_git_status formatted: {formatted!r} (type: {type(formatted)})")
             return {
                 "content": [
                     {
                         "type": "text",
-                        "text": format_status_response(result)
+                        "text": formatted
                     }
                 ]
             }
         
         elif tool_name == "explain_git_command":
             command = tool_arguments.get("command", "")
+            logger.debug(f"explain_git_command: command={command!r} (type: {type(command)})")
             result = await assistant.explain_command(command)
+            logger.debug(f"explain_git_command result: {result!r} (type: {type(result)})")
+            formatted = format_explanation_response(result)
+            logger.debug(f"explain_git_command formatted: {formatted!r} (type: {type(formatted)})")
             return {
                 "content": [
                     {
                         "type": "text",
-                        "text": format_explanation_response(result)
+                        "text": formatted
                     }
                 ]
             }
         
         else:
+            logger.error(f"Unknown tool called: {tool_name!r}")
             raise ValueError(f"Unknown tool: {tool_name}")
     
     elif method == "resources/list":
@@ -430,9 +445,11 @@ async def process_mcp_method(method: str, params: Dict[str, Any]) -> Dict[str, A
     
     elif method == "resources/read":
         uri = params.get("uri", "")
+        logger.debug(f"resources/read: uri={uri!r} (type: {type(uri)})")
         
         if uri == "git://current-status":
             result = await assistant.get_repository_status()
+            logger.debug(f"resources/read current-status result: {result!r} (type: {type(result)})")
             return {
                 "contents": [
                     {
@@ -445,6 +462,7 @@ async def process_mcp_method(method: str, params: Dict[str, Any]) -> Dict[str, A
         
         elif uri == "git://system-info":
             result = assistant.get_system_info()
+            logger.debug(f"resources/read system-info result: {result!r} (type: {type(result)})")
             return {
                 "contents": [
                     {
@@ -456,6 +474,7 @@ async def process_mcp_method(method: str, params: Dict[str, Any]) -> Dict[str, A
             }
         
         else:
+            logger.error(f"Unknown resource URI called: {uri!r}")
             raise ValueError(f"Unknown resource URI: {uri}")
     
     else:
